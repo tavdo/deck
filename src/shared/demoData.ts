@@ -190,12 +190,12 @@ export function buildGeorgianSvgIllustrationDataUri(params: {
     <rect width="300" height="420" fill="url(#geoGrid)"/>
 
     <!-- Georgian Cathedral Arch Inner Frame -->
-    <path d="M36 376 V118 C36 62 88 38 150 38 C212 38 264 62 264 118 V376 H36 Z" fill="none" stroke="${accent}" stroke-width="1.8" stroke-opacity="0.65"/>
-    <path d="M44 368 V122 C44 72 92 48 150 48 C208 48 256 72 256 122 V368 H44 Z" fill="none" stroke="${primary}" stroke-width="1.2" stroke-dasharray="3 3"/>
+    <path d="M54 362 V120 C54 70 96 54 150 54 C204 54 246 70 246 120 V362 H54 Z" fill="none" stroke="${accent}" stroke-width="1.8" stroke-opacity="0.65"/>
+    <path d="M60 356 V124 C60 78 100 62 150 62 C200 62 240 78 240 124 V356 H60 Z" fill="none" stroke="${primary}" stroke-width="1.2" stroke-dasharray="3 3"/>
 
     <!-- Top & Bottom Ornamental Finials -->
-    <circle cx="150" cy="38" r="6" fill="${accent}"/>
-    <path d="M120 356 Q150 338 180 356" fill="none" stroke="${accent}" stroke-width="1.6"/>
+    <circle cx="150" cy="56" r="5" fill="${accent}"/>
+    <path d="M120 352 Q150 336 180 352" fill="none" stroke="${accent}" stroke-width="1.6"/>
 
     <!-- Main Subject Illustration -->
     ${centerArtwork}
@@ -205,9 +205,16 @@ export function buildGeorgianSvgIllustrationDataUri(params: {
 }
 
 /**
- * Wraps and stylizes a user-uploaded photo (base64 data URI) inside a Georgian
- * ornamental sanctuary arch & royal filigree composition so that an uploaded photo
- * immediately becomes a cohesive Georgian playing card artwork.
+ * Transforms a user-uploaded photo (base64 data URI) into a genuine Georgian
+ * playing card artwork inside the 300x420 card coordinate system (visible window x=48..252, y=50..370).
+ *
+ * - When `stylizeFilter: true` (AI / Royal Court Card Stylization):
+ *   Builds an authentic double-headed (two-way 180° mirrored) playing card composition
+ *   with warm lithographic gold/wine color grading, ornate Georgian cathedral arch spandrels,
+ *   and a central cloisonné enamel heraldic sash & royal crown medallion at y=210.
+ * - When `stylizeFilter: false` (Portrait Cathedral Frame):
+ *   Frames the full portrait inside a sculpted Georgian cathedral arch with crimson-and-gold
+ *   filigree spandrels, corner rosettes, and a royal lower crest (all 100% within y=50..370).
  */
 export function buildGeorgianPhotoCompositeSvgDataUri(params: {
   base64Data: string;
@@ -225,80 +232,155 @@ export function buildGeorgianPhotoCompositeSvgDataUri(params: {
   const cleanBase64 = params.base64Data.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
   const embeddedHref = `data:${params.mimeType};base64,${cleanBase64}`;
 
-  const crownOverlay =
-    params.rank === 'K' || params.rank === 'Q'
-      ? `
-      <!-- Royal Georgian Crown Crest Above Portrait -->
-      <g transform="translate(0, -4)">
-        <path d="M116 64 L124 40 L138 54 L150 32 L162 54 L176 40 L184 64 Z" fill="${accent}" stroke="#151515" stroke-width="1.4"/>
-        <rect x="118" y="62" width="64" height="7" rx="3" fill="${primary}" stroke="${accent}" stroke-width="1.3"/>
-        <circle cx="150" cy="30" r="3.5" fill="${primary}" stroke="${accent}" stroke-width="1.2"/>
-        <circle cx="132" cy="65.5" r="2" fill="#F4EBDD"/>
-        <circle cx="150" cy="65.5" r="2.4" fill="${accent}"/>
-        <circle cx="168" cy="65.5" r="2" fill="#F4EBDD"/>
-      </g>`
-      : '';
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420" width="600" height="840">
-    <defs>
-      <radialGradient id="photoBgGlow" cx="50%" cy="45%" r="62%">
-        <stop offset="0%" stop-color="${primary}" stop-opacity="0.5"/>
-        <stop offset="70%" stop-color="${secondary}" stop-opacity="0.92"/>
-        <stop offset="100%" stop-color="#120E10" stop-opacity="1"/>
-      </radialGradient>
-      <radialGradient id="photoVignette" cx="50%" cy="48%" r="54%">
-        <stop offset="55%" stop-color="#000000" stop-opacity="0"/>
-        <stop offset="88%" stop-color="${secondary}" stop-opacity="0.48"/>
-        <stop offset="100%" stop-color="#120E10" stop-opacity="0.88"/>
-      </radialGradient>
-      <clipPath id="georgianPortraitArch">
-        <path d="M40 372 V120 C40 66 90 42 150 42 C210 42 260 66 260 120 V372 Z"/>
-      </clipPath>
-      ${
-        params.stylizeFilter
-          ? `<filter id="georgianHeritageTone" color-interpolation-filters="sRGB">
-              <feColorMatrix type="matrix" values="
-                1.08 0.06 0.02 0 0.01
-                0.03 0.98 0.02 0 0
-                0.01 0.02 0.88 0 0
-                0    0    0    1 0" />
-            </filter>`
-          : ''
-      }
-    </defs>
-
-    <!-- Sanctuary Background -->
-    <rect width="300" height="420" fill="url(#photoBgGlow)"/>
-
-    <!-- User Uploaded Photo Clipped to Georgian Cathedral Arch -->
-    <g clip-path="url(#georgianPortraitArch)">
+  if (params.stylizeFilter !== false) {
+    // ========================================================================
+    // MODE 1: Symmetrical Double-Headed Royal Court Playing Card Design
+    // ========================================================================
+    const halfPortraitLayer = `
+      <!-- Sanctuary Tapestry Backing -->
+      <rect x="48" y="50" width="204" height="160" fill="url(#photoBgGlow)"/>
+      <!-- User Portrait Positioned in Upper Court Frame -->
       <image
         href="${embeddedHref}"
-        x="34"
-        y="36"
-        width="232"
-        height="344"
-        preserveAspectRatio="xMidYMid slice"
-        ${params.stylizeFilter ? 'filter="url(#georgianHeritageTone)"' : ''}
+        x="48"
+        y="50"
+        width="204"
+        height="168"
+        preserveAspectRatio="xMidYMin slice"
+        filter="url(#georgianRoyalLitho)"
       />
-      <rect x="34" y="36" width="232" height="344" fill="url(#photoVignette)"/>
+      <!-- Soft Wine & Gold Vignette -->
+      <rect x="48" y="50" width="204" height="160" fill="url(#halfVignette)"/>
+
+      <!-- Sculpted Georgian Cathedral Arch Spandrels in Corners -->
+      <path d="M48 50 H118 C82 54 56 76 52 114 V50 Z" fill="${secondary}" stroke="${accent}" stroke-width="1.6"/>
+      <path d="M252 50 H182 C218 54 244 76 248 114 V50 Z" fill="${secondary}" stroke="${accent}" stroke-width="1.6"/>
+      <circle cx="64" cy="66" r="6" fill="${primary}" stroke="${accent}" stroke-width="1.3"/>
+      <circle cx="64" cy="66" r="2.2" fill="${accent}"/>
+      <circle cx="236" cy="66" r="6" fill="${primary}" stroke="${accent}" stroke-width="1.3"/>
+      <circle cx="236" cy="66" r="2.2" fill="${accent}"/>
+
+      <!-- Inner Gold Filigree Arch Line -->
+      <path d="M54 210 V112 C54 74 84 54 150 54 C216 54 246 74 246 112 V210" fill="none" stroke="${accent}" stroke-width="2"/>
+      <path d="M59 210 V114 C59 80 88 60 150 60 C212 60 241 80 241 114 V210" fill="none" stroke="${accent}" stroke-width="0.9" stroke-dasharray="3 2" stroke-opacity="0.75"/>
+    `;
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420" width="600" height="840">
+      <defs>
+        <radialGradient id="photoBgGlow" cx="50%" cy="40%" r="65%">
+          <stop offset="0%" stop-color="${primary}" stop-opacity="0.55"/>
+          <stop offset="70%" stop-color="${secondary}" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="#120E10" stop-opacity="1"/>
+        </radialGradient>
+        <radialGradient id="halfVignette" cx="50%" cy="45%" r="58%">
+          <stop offset="48%" stop-color="#000000" stop-opacity="0"/>
+          <stop offset="86%" stop-color="${secondary}" stop-opacity="0.42"/>
+          <stop offset="100%" stop-color="#120E10" stop-opacity="0.82"/>
+        </radialGradient>
+        <linearGradient id="sashGoldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#9E7B3B"/>
+          <stop offset="50%" stop-color="#E7CA8B"/>
+          <stop offset="100%" stop-color="#9E7B3B"/>
+        </linearGradient>
+        <clipPath id="topHalfClip">
+          <rect x="48" y="50" width="204" height="160"/>
+        </clipPath>
+        <filter id="georgianRoyalLitho" color-interpolation-filters="sRGB">
+          <feColorMatrix type="matrix" values="
+            1.14 0.08 0.02 0 0.02
+            0.04 1.00 0.02 0 0.01
+            0.01 0.02 0.84 0 -0.02
+            0    0    0    1 0" />
+          <feComponentTransfer>
+            <feFuncR type="gamma" amplitude="1.04" exponent="0.94" offset="0"/>
+            <feFuncG type="gamma" amplitude="1.0" exponent="0.96" offset="0"/>
+            <feFuncB type="gamma" amplitude="0.94" exponent="1.04" offset="0"/>
+          </feComponentTransfer>
+        </filter>
+      </defs>
+
+      <rect width="300" height="420" fill="${secondary}"/>
+
+      <!-- TOP UPRIGHT COURT PORTRAIT -->
+      <g clip-path="url(#topHalfClip)">
+        ${halfPortraitLayer}
+      </g>
+
+      <!-- BOTTOM 180-DEGREE MIRRORED COURT PORTRAIT -->
+      <g transform="rotate(180 150 210)" clip-path="url(#topHalfClip)">
+        ${halfPortraitLayer}
+      </g>
+
+      <!-- CENTRAL GEORGIAN CLOISONNÉ HERALDIC DIVIDER SASH (y=210) -->
+      <g>
+        <!-- Angled Enamel Ribbon Band -->
+        <polygon points="48,199 252,191 252,221 48,229" fill="${secondary}" stroke="url(#sashGoldGrad)" stroke-width="2.2"/>
+        <polygon points="48,203 252,195 252,217 48,225" fill="${primary}" stroke="${accent}" stroke-width="1"/>
+        <!-- Ornamental Vine Dots Along Sash -->
+        <circle cx="76" cy="212" r="3" fill="${accent}"/>
+        <circle cx="96" cy="211" r="2" fill="#F4EBDD"/>
+        <circle cx="204" cy="209" r="2" fill="#F4EBDD"/>
+        <circle cx="224" cy="208" r="3" fill="${accent}"/>
+
+        <!-- Central Royal Georgian Shield & Crown Medallion -->
+        <path d="M150 184 L178 210 L150 236 L122 210 Z" fill="${secondary}" stroke="url(#sashGoldGrad)" stroke-width="2.4"/>
+        <circle cx="150" cy="210" r="16" fill="${primary}" stroke="${accent}" stroke-width="1.6"/>
+        <!-- Royal Bagrationi Crown Icon Inside Center Medallion -->
+        <path d="M139 215 L142 203 L147 209 L150 200 L153 209 L158 203 L161 215 Z" fill="${accent}" stroke="#151515" stroke-width="0.9"/>
+        <rect x="140" y="215" width="20" height="3.2" rx="1.2" fill="#F4EBDD"/>
+      </g>
+    </svg>`;
+
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  }
+
+  // ==========================================================================
+  // MODE 2: Full-Height Sculpted Georgian Cathedral Portrait Frame
+  // ==========================================================================
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420" width="600" height="840">
+    <defs>
+      <radialGradient id="photoVignetteFull" cx="50%" cy="46%" r="58%">
+        <stop offset="56%" stop-color="#000000" stop-opacity="0"/>
+        <stop offset="88%" stop-color="${secondary}" stop-opacity="0.45"/>
+        <stop offset="100%" stop-color="#120E10" stop-opacity="0.85"/>
+      </radialGradient>
+      <clipPath id="cathedralFullArch">
+        <path d="M54 360 V116 C54 74 92 56 150 56 C208 56 246 74 246 116 V360 Z"/>
+      </clipPath>
+    </defs>
+
+    <!-- Sanctuary Base -->
+    <rect width="300" height="420" fill="${secondary}"/>
+
+    <!-- Full Portrait Inside Cathedral Arch -->
+    <g clip-path="url(#cathedralFullArch)">
+      <image
+        href="${embeddedHref}"
+        x="48"
+        y="50"
+        width="204"
+        height="320"
+        preserveAspectRatio="xMidYMid slice"
+      />
+      <rect x="48" y="50" width="204" height="320" fill="url(#photoVignetteFull)"/>
     </g>
 
-    <!-- Georgian Cloisonné Gold & Enamel Arch Frame -->
-    <path d="M40 372 V120 C40 66 90 42 150 42 C210 42 260 66 260 120 V372 Z" fill="none" stroke="${accent}" stroke-width="3.2"/>
-    <path d="M47 365 V123 C47 73 94 50 150 50 C206 50 253 73 253 123 V365 Z" fill="none" stroke="${primary}" stroke-width="1.3" stroke-dasharray="4 3"/>
+    <!-- Sculpted Georgian Spandrels in Upper & Lower Corners -->
+    <path d="M48 50 H122 C84 54 56 76 54 116 H48 Z" fill="${secondary}" stroke="${accent}" stroke-width="1.5"/>
+    <path d="M252 50 H178 C216 54 244 76 246 116 H252 Z" fill="${secondary}" stroke="${accent}" stroke-width="1.5"/>
+    <circle cx="65" cy="67" r="6" fill="${primary}" stroke="${accent}" stroke-width="1.3"/>
+    <circle cx="65" cy="67" r="2.2" fill="${accent}"/>
+    <circle cx="235" cy="67" r="6" fill="${primary}" stroke="${accent}" stroke-width="1.3"/>
+    <circle cx="235" cy="67" r="2.2" fill="${accent}"/>
 
-    <!-- Corner Filigree Rosettes -->
-    <circle cx="54" cy="356" r="8" fill="${secondary}" stroke="${accent}" stroke-width="1.6"/>
-    <circle cx="54" cy="356" r="3" fill="${accent}"/>
-    <circle cx="246" cy="356" r="8" fill="${secondary}" stroke="${accent}" stroke-width="1.6"/>
-    <circle cx="246" cy="356" r="3" fill="${accent}"/>
+    <!-- Gold Cathedral Arch Outline -->
+    <path d="M54 360 V116 C54 74 92 56 150 56 C208 56 246 74 246 116 V360 Z" fill="none" stroke="${accent}" stroke-width="2.5"/>
+    <path d="M60 354 V118 C60 80 96 62 150 62 C204 62 240 80 240 118 V354 Z" fill="none" stroke="${accent}" stroke-width="0.9" stroke-dasharray="4 3" stroke-opacity="0.75"/>
 
-    <!-- Bottom Heraldic Medallion -->
-    <path d="M112 372 L150 352 L188 372 L150 390 Z" fill="${secondary}" stroke="${accent}" stroke-width="1.8"/>
-    <circle cx="150" cy="371" r="6" fill="${primary}" stroke="${accent}" stroke-width="1.4"/>
-
-    ${crownOverlay}
+    <!-- Bottom Heraldic Crest Medallion (Cleanly inside y=50..370) -->
+    <path d="M124 356 L150 338 L176 356 L150 368 Z" fill="${secondary}" stroke="${accent}" stroke-width="1.8"/>
+    <circle cx="150" cy="353" r="5.5" fill="${primary}" stroke="${accent}" stroke-width="1.3"/>
+    <circle cx="150" cy="353" r="2" fill="${accent}"/>
   </svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;

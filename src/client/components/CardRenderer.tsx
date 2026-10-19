@@ -114,16 +114,16 @@ export const CardRenderer: React.FC<CardRendererProps> = ({
     switch (spec.illustrationFrameStyle) {
       case 'octagonal':
         return (
-          <polygon points="75,54 225,54 252,84 252,336 225,366 75,366 48,336 48,84" />
+          <polygon points="76,50 224,50 252,78 252,342 224,370 76,370 48,342 48,78" />
         );
       case 'medallion':
-        return <ellipse cx="150" cy="210" rx="98" ry="138" />;
+        return <ellipse cx="150" cy="210" rx="100" ry="148" />;
       case 'full-bleed':
         return <rect x="18" y="18" width="264" height="384" rx="10" />;
       case 'arch':
       default:
         return (
-          <path d="M52 362 V124 C52 72 94 52 150 52 C206 52 248 72 248 124 V362 Z" />
+          <path d="M48 76 Q48 50 74 50 H226 Q252 50 252 76 V344 Q252 370 226 370 H74 Q48 370 48 344 Z" />
         );
     }
   };
@@ -197,8 +197,8 @@ export const CardRenderer: React.FC<CardRendererProps> = ({
           />
         )}
 
-        {/* 3. Subtle Background Watermark in Center */}
-        {spec.showCenterWatermark && (
+        {/* 3. Subtle Background Watermark in Center (only when no illustration covers it) */}
+        {spec.showCenterWatermark && !illustrationUrl && (
           <g opacity="0.06" transform="translate(150, 210)">
             <circle cx="0" cy="0" r="110" fill="none" stroke={spec.primaryColor} strokeWidth="2" />
             <path d="M0 -110 L110 0 L0 110 L-110 0 Z" fill={spec.primaryColor} />
@@ -375,15 +375,15 @@ export const CardRenderer: React.FC<CardRendererProps> = ({
           </g>
         </g>
 
-        {/* 9. Optional Ribbon Title Banner at Bottom of Arch */}
+        {/* 9. Optional Ribbon Title Banner Below Frame */}
         {titleKa && spec.illustrationFrameStyle !== 'full-bleed' && (
-          <g transform="translate(150, 384)">
+          <g transform="translate(150, 391)">
             <rect
-              x="-76"
-              y="-11"
-              width="152"
-              height="20"
-              rx="10"
+              x="-78"
+              y="-10"
+              width="156"
+              height="19"
+              rx="9.5"
               fill={spec.secondaryColor}
               stroke={spec.accentColor}
               strokeWidth="1.1"
@@ -393,7 +393,7 @@ export const CardRenderer: React.FC<CardRendererProps> = ({
               y="2.5"
               textAnchor="middle"
               fill={spec.surfaceColor}
-              fontSize="8.5"
+              fontSize="8.2"
               fontFamily="'Noto Sans Georgian', sans-serif"
               fontWeight="600"
             >
@@ -430,31 +430,6 @@ export const CardRenderer: React.FC<CardRendererProps> = ({
           </g>
         )}
       </svg>
-
-      {/* Optional HTML Overlay Corner Ornaments if requested */}
-      {spec.showCornerOrnaments && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            pointerEvents: 'none',
-            opacity: 0.22,
-          }}
-        >
-          <GeorgianCornerOrnament
-            size={28 * scale}
-            position="top-right"
-            variant={spec.ornamentMotif}
-            style={{ position: 'absolute', top: 8 * scale, right: 8 * scale }}
-          />
-          <GeorgianCornerOrnament
-            size={28 * scale}
-            position="bottom-left"
-            variant={spec.ornamentMotif}
-            style={{ position: 'absolute', bottom: 8 * scale, left: 8 * scale }}
-          />
-        </div>
-      )}
     </div>
   );
 };

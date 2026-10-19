@@ -116,7 +116,8 @@ export const GeneratorPage: React.FC<{
         fileName: file.name,
         photoTransformMode,
       });
-      notify(`ფოტო "${file.name}" წარმატებით აიტვირთა!`, 'success');
+      setCurrentSingleCard(null);
+      notify(`ფოტო "${file.name}" მზადაა ბანქოს დიზაინისთვის!`, 'success');
     };
     reader.onerror = () => {
       notify('ფოტოს წაკითხვისას მოხდა შეცდომა.', 'error');
@@ -278,11 +279,13 @@ export const GeneratorPage: React.FC<{
   };
 
   const handleDownloadSingleCard = async () => {
-    if (!currentSingleCard || !singleSvgRef.current) return;
+    if (!singleSvgRef.current) return;
     try {
+      const targetSuit = currentSingleCard?.suit || suit;
+      const targetRank = currentSingleCard?.rank || rank;
       await downloadPngFromSvgElement(
         singleSvgRef.current,
-        `kartuli-card-${currentSingleCard.suit}-${currentSingleCard.rank}.png`
+        `kartuli-card-${targetSuit}-${targetRank}.png`
       );
       notify('კარტი ჩამოტვირთულია PNG ფორმატში.', 'success');
     } catch {
@@ -549,7 +552,7 @@ export const GeneratorPage: React.FC<{
   const renderPhotoUploadSection = (titleText: string) => (
     <div
       style={{
-        padding: '1rem',
+        padding: '0.95rem',
         background: isDraggingPhoto
           ? 'rgba(198, 161, 91, 0.16)'
           : 'rgba(53, 26, 34, 0.38)',
@@ -559,6 +562,7 @@ export const GeneratorPage: React.FC<{
         borderRadius: 'var(--radius-md)',
         marginBottom: '1.15rem',
         transition: 'all 0.2s ease',
+        overflow: 'hidden',
       }}
       onDragOver={(e) => {
         e.preventDefault();
@@ -584,15 +588,23 @@ export const GeneratorPage: React.FC<{
       <div
         style={{
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '0.75rem',
-          marginBottom: uploadedImage ? '0.85rem' : '0.4rem',
+          gap: '0.55rem',
+          marginBottom: '0.7rem',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-          <ImageIcon size={18} color="#C6A15B" />
-          <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-ivory)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+          <ImageIcon size={17} color="#C6A15B" style={{ flexShrink: 0 }} />
+          <span
+            style={{
+              fontWeight: 600,
+              fontSize: '0.86rem',
+              color: 'var(--color-ivory)',
+              lineHeight: 1.3,
+            }}
+          >
             {titleText}
           </span>
         </div>
@@ -600,6 +612,7 @@ export const GeneratorPage: React.FC<{
         <button
           type="button"
           className="btn btn-gold btn-sm"
+          style={{ width: '100%' }}
           onClick={() => photoInputRef.current?.click()}
         >
           <Upload size={14} />
@@ -611,13 +624,14 @@ export const GeneratorPage: React.FC<{
         <div
           onClick={() => photoInputRef.current?.click()}
           style={{
-            fontSize: '0.8rem',
+            fontSize: '0.79rem',
             color: 'var(--color-stone)',
             cursor: 'pointer',
-            padding: '0.35rem 0',
+            padding: '0.2rem 0',
+            lineHeight: 1.5,
           }}
         >
-          გადმოიტანეთ ფოტო აქ ან დააჭირეთ ასატვირთად (PNG, JPG, WEBP — მაქს. 8MB). პროგრამა ავტომატურად შექმნის ქართული ბანქოს დიზაინს თქვენი ფოტოს მიხედვით.
+          გადმოიტანეთ ფოტო აქ ან დააჭირეთ ასატვირთად (PNG, JPG, WEBP — მაქს. 8MB). პროგრამა ავტომატურად შექმნის ორმხრივ სამეფო ქართულ ბანქოს თქვენი ფოტოთი.
         </div>
       ) : (
         <div>
@@ -626,32 +640,50 @@ export const GeneratorPage: React.FC<{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: '0.75rem',
-              padding: '0.6rem',
+              gap: '0.6rem',
+              padding: '0.55rem',
               background: 'rgba(15, 13, 14, 0.72)',
               borderRadius: 'var(--radius-sm)',
               border: 'var(--border-gold-thin)',
-              marginBottom: '0.75rem',
+              marginBottom: '0.65rem',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                minWidth: 0,
+                flex: 1,
+              }}
+            >
               <img
                 src={`data:${uploadedImage.mimeType};base64,${uploadedImage.base64Data}`}
                 alt="ატვირთული ფოტო"
                 style={{
-                  width: '52px',
-                  height: '64px',
+                  width: '46px',
+                  height: '58px',
                   objectFit: 'cover',
                   borderRadius: '6px',
                   border: '1px solid var(--color-gold)',
+                  flexShrink: 0,
                 }}
               />
-              <div>
-                <div style={{ fontSize: '0.84rem', fontWeight: 600 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title={uploadedImage.fileName || 'ატვირთული ფოტო'}
+                >
                   {uploadedImage.fileName || 'ატვირთული ფოტო'}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#8CD9A3' }}>
-                  ფოტო მზადაა კარტის დიზაინში ჩასასმელად
+                <div style={{ fontSize: '0.73rem', color: '#8CD9A3', lineHeight: 1.3 }}>
+                  ფოტო მზადაა ბანქოს დიზაინში
                 </div>
               </div>
             </div>
@@ -659,6 +691,7 @@ export const GeneratorPage: React.FC<{
             <button
               type="button"
               className="btn btn-danger btn-sm"
+              style={{ flexShrink: 0, padding: '0.4rem 0.65rem' }}
               onClick={clearUploadedPhoto}
               title="ფოტოს წაშლა"
             >
@@ -667,21 +700,23 @@ export const GeneratorPage: React.FC<{
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
             <button
               type="button"
               className={`btn btn-sm ${
                 photoTransformMode === 'ai-stylize' ? 'btn-primary' : 'btn-secondary'
               }`}
+              style={{ width: '100%', justifyContent: 'flex-start' }}
               onClick={() => {
                 setPhotoTransformMode('ai-stylize');
+                setCurrentSingleCard(null);
                 setUploadedImage((prev) =>
                   prev ? { ...prev, photoTransformMode: 'ai-stylize' } : null
                 );
               }}
             >
               <Wand2 size={14} />
-              <span>AI ქართული სტილიზაცია</span>
+              <span>სამეფო ორმხრივი ბანქოს სტილიზაცია (AI / სიმეტრიული)</span>
             </button>
 
             <button
@@ -689,15 +724,17 @@ export const GeneratorPage: React.FC<{
               className={`btn btn-sm ${
                 photoTransformMode === 'direct-frame' ? 'btn-primary' : 'btn-secondary'
               }`}
+              style={{ width: '100%', justifyContent: 'flex-start' }}
               onClick={() => {
                 setPhotoTransformMode('direct-frame');
+                setCurrentSingleCard(null);
                 setUploadedImage((prev) =>
                   prev ? { ...prev, photoTransformMode: 'direct-frame' } : null
                 );
               }}
             >
               <ImageIcon size={14} />
-              <span>პირდაპირი ქართული ჩარჩო</span>
+              <span>სრული პორტრეტი ქართულ თაღოვან ჩარჩოში</span>
             </button>
           </div>
         </div>
@@ -1251,24 +1288,37 @@ export const GeneratorPage: React.FC<{
                 <CardRenderer
                   id={currentSingleCard?.id || 'single-live-preview'}
                   svgRef={singleSvgRef}
-                  rank={currentSingleCard?.rank || rank}
-                  suit={currentSingleCard?.suit || suit}
+                  rank={uploadedImage ? rank : currentSingleCard?.rank || rank}
+                  suit={uploadedImage ? suit : currentSingleCard?.suit || suit}
                   illustrationUrl={
-                    currentSingleCard?.illustrationUrl || liveUploadedPhotoIllustrationUrl
+                    uploadedImage
+                      ? currentSingleCard?.illustrationUrl || liveUploadedPhotoIllustrationUrl
+                      : currentSingleCard?.illustrationUrl
                   }
                   titleKa={
-                    currentSingleCard?.titleKa ||
-                    `${SUIT_METADATA[suit].nameKa} — ${RANK_METADATA[rank].labelKa}`
+                    uploadedImage
+                      ? `${SUIT_METADATA[suit].nameKa} — ${RANK_METADATA[rank].labelKa}`
+                      : currentSingleCard?.titleKa ||
+                        `${SUIT_METADATA[suit].nameKa} — ${RANK_METADATA[rank].labelKa}`
                   }
                   designSpec={
-                    currentSingleCard?.designSpec || {
-                      paletteId: selectedPaletteObj.id,
-                      primaryColor: selectedPaletteObj.primary,
-                      secondaryColor: selectedPaletteObj.secondary,
-                      accentColor: selectedPaletteObj.accent,
-                      surfaceColor: selectedPaletteObj.surface,
-                      ornamentMotif,
-                    }
+                    uploadedImage
+                      ? {
+                          paletteId: selectedPaletteObj.id,
+                          primaryColor: selectedPaletteObj.primary,
+                          secondaryColor: selectedPaletteObj.secondary,
+                          accentColor: selectedPaletteObj.accent,
+                          surfaceColor: selectedPaletteObj.surface,
+                          ornamentMotif,
+                        }
+                      : currentSingleCard?.designSpec || {
+                          paletteId: selectedPaletteObj.id,
+                          primaryColor: selectedPaletteObj.primary,
+                          secondaryColor: selectedPaletteObj.secondary,
+                          accentColor: selectedPaletteObj.accent,
+                          surfaceColor: selectedPaletteObj.surface,
+                          ornamentMotif,
+                        }
                   }
                   scale={1.08}
                 />
