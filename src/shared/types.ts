@@ -462,6 +462,36 @@ export interface PlayingCard {
 }
 
 // ============================================================================
+// Uploaded Photo & Reference Image Validation
+// ============================================================================
+
+export const ALLOWED_UPLOAD_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
+
+export type AllowedUploadMimeType = (typeof ALLOWED_UPLOAD_MIME_TYPES)[number];
+
+export const UploadedImageSchema = z.object({
+  base64Data: z
+    .string()
+    .min(16, 'ატვირთული ფოტოს მონაცემები ცარიელია')
+    .max(12_000_000, 'ფოტოს ზომა აღემატება დასაშვებ ლიმიტს (მაქს. 8MB)'),
+  mimeType: z.enum(ALLOWED_UPLOAD_MIME_TYPES, {
+    errorMap: () => ({
+      message: 'მხარდაჭერილია მხოლოდ PNG, JPG და WEBP ფორმატის ფოტოები',
+    }),
+  }),
+  fileName: z.string().max(255).optional(),
+  photoTransformMode: z
+    .enum(['ai-stylize', 'direct-frame'])
+    .default('ai-stylize'),
+});
+
+export type UploadedImageInput = z.infer<typeof UploadedImageSchema>;
+
+// ============================================================================
 // Deck Configuration & Project Entity
 // ============================================================================
 
@@ -481,6 +511,7 @@ export const DeckConfigSchema = z.object({
   imageQuality: z.enum(['1K', '2K', '4K']).default('1K'),
   modelId: z.string().default('gemini-nano-banana-2.1'),
   customDeckThemePrompt: z.string().optional(),
+  uploadedReferenceImage: UploadedImageSchema.optional(),
 });
 
 export type DeckConfig = z.infer<typeof DeckConfigSchema>;
@@ -538,6 +569,7 @@ export const SingleCardGenerateRequestSchema = z.object({
   imageQuality: z.enum(['1K', '2K', '4K']).default('1K'),
   modelId: z.string().default('gemini-nano-banana-2.1'),
   designSpec: CardDesignSpecSchema.optional(),
+  uploadedImage: UploadedImageSchema.optional(),
 });
 
 export type SingleCardGenerateRequest = z.infer<typeof SingleCardGenerateRequestSchema>;

@@ -10,9 +10,12 @@ import {
   Eye,
   Sliders,
   Check,
+  Upload,
 } from 'lucide-react';
 import { CardRenderer } from '../components/CardRenderer';
 import {
+  ALLOWED_UPLOAD_MIME_TYPES,
+  AllowedUploadMimeType,
   CardDesignSpec,
   COLOR_PALETTES,
   DEFAULT_CARD_DESIGN_SPEC,
@@ -22,7 +25,10 @@ import {
   SUIT_METADATA,
   SUIT_TYPES,
 } from '../../shared/types';
-import { INITIAL_DEMO_CARDS } from '../../shared/demoData';
+import {
+  buildGeorgianPhotoCompositeSvgDataUri,
+  INITIAL_DEMO_CARDS,
+} from '../../shared/demoData';
 import { apiClient } from '../services/apiClient';
 import {
   downloadPngFromSvgElement,
@@ -54,6 +60,52 @@ export const CardEditorPage: React.FC<{
   const [isRegenerating, setIsRegenerating] = useState<boolean>(false);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const editorPhotoInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleEditorPhotoUpload = (file?: File | null) => {
+    if (!file) return;
+    if (
+      !ALLOWED_UPLOAD_MIME_TYPES.includes(file.type as AllowedUploadMimeType)
+    ) {
+      notify('მხარდაჭერილია მხოლოდ PNG, JPG და WEBP ფორმატები.', 'error');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      notify('ფოტოს ზომა არ უნდა აღემატებოდეს 8 MB-ს.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const resultStr = String(reader.result || '');
+      const base64Clean = resultStr.replace(
+        /^data:image\/[a-zA-Z0-9+.-]+;base64,/,
+        ''
+      );
+      const compositeUri = buildGeorgianPhotoCompositeSvgDataUri({
+        base64Data: base64Clean,
+        mimeType: file.type,
+        rank: activeCard.rank,
+        suit: activeCard.suit,
+        primaryColor: spec.primaryColor,
+        secondaryColor: spec.secondaryColor,
+        accentColor: spec.accentColor,
+        stylizeFilter: true,
+      });
+
+      try {
+        const updated = await apiClient.updateCard(activeCard.id, {
+          illustrationUrl: compositeUri,
+          designSpec: spec,
+        });
+        onCardUpdated(updated);
+        notify('ატვირთული ფოტო ჩასმულია კარტის დიზაინში!', 'success');
+      } catch {
+        notify('ფოტოს განახლება ვერ მოხერხდა.', 'error');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     if (activeCard) {
@@ -413,6 +465,23 @@ export const CardEditorPage: React.FC<{
 
           {/* Save & Regenerate Actions */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+            <input
+              ref={editorPhotoInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              style={{ display: 'none' }}
+              onChange={(e) => handleEditorPhotoUpload(e.target.files?.[0])}
+            />
+
+            <button
+              type="button"
+              className="btn btn-gold"
+              onClick={() => editorPhotoInputRef.current?.click()}
+            >
+              <Upload size={17} />
+              <span>საკუთარი ფოტოს ატვირთვა კარტში</span>
+            </button>
+
             <button
               className="btn btn-primary"
               onClick={handleSaveChanges}

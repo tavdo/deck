@@ -238,6 +238,7 @@ export async function processGenerationJobInBackground(jobId: string): Promise<v
             imageQuality: project.deckConfig.imageQuality,
             modelId: project.deckConfig.modelId,
             sharedStyleSpec: job.sharedStyleSpec,
+            uploadedImage: project.deckConfig.uploadedReferenceImage,
           });
 
           const elapsed = Date.now() - cardStart;

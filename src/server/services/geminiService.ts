@@ -10,8 +10,12 @@ import {
   SUIT_METADATA,
   SuitType,
   SUPPORTED_GEMINI_MODELS,
+  UploadedImageInput,
 } from '../../shared/types.js';
-import { buildGeorgianSvgIllustrationDataUri } from '../../shared/demoData.js';
+import {
+  buildGeorgianPhotoCompositeSvgDataUri,
+  buildGeorgianSvgIllustrationDataUri,
+} from '../../shared/demoData.js';
 import { storeCardIllustration } from './storageService.js';
 
 export interface CardGenerationInput {
@@ -28,6 +32,7 @@ export interface CardGenerationInput {
   imageQuality?: '1K' | '2K' | '4K';
   modelId?: string;
   sharedStyleSpec?: SharedStyleSpec;
+  uploadedImage?: UploadedImageInput;
 }
 
 export interface NormalizedGenerationResult {
@@ -86,8 +91,12 @@ export function buildCardIllustrationPrompt(input: CardGenerationInput): string 
       ].join(' ')
     : `Technique: ${styleMeta.promptDirective}. Ornamental motif: ${motifMeta.promptEn}.`;
 
+  const hasUploadedImage = Boolean(input.uploadedImage?.base64Data);
+
   return [
-    'Create an original luxury playing card illustration inspired by Georgian cultural heritage.',
+    hasUploadedImage
+      ? 'Transform the provided reference photo into an original luxury playing card illustration inspired by Georgian cultural heritage, preserving the main subject identity, facial features, or focal composition from the uploaded photo while reimagining attire, framing, and surface texture in royal Georgian style.'
+      : 'Create an original luxury playing card illustration inspired by Georgian cultural heritage.',
     'Incorporate carefully researched Georgian ornamental motifs, traditional decorative craftsmanship, elegant geometric framing, and a sophisticated palette of wine red, antique gold, and warm ivory.',
     `Color Palette Tokens: Primary ${paletteMeta.primary}, Deep Burgundy ${paletteMeta.secondary}, Antique Gold ${paletteMeta.accent}, Warm Ivory ${paletteMeta.surface}.`,
     `Card Identity: ${rankMeta.labelKa} of ${suitMeta.nameKa} (${suitMeta.heritageMeaningKa}).`,
@@ -218,8 +227,69 @@ export async function generateCardIllustrationWithGemini(
   const paletteMeta =
     COLOR_PALETTES.find((p) => p.id === input.paletteId) || COLOR_PALETTES[0];
 
+  // Direct Georgian Ornamental Framing Mode for Uploaded Photos
+  if (
+    input.uploadedImage &&
+    input.uploadedImage.photoTransformMode === 'direct-frame'
+  ) {
+    const compositeSvgUri = buildGeorgianPhotoCompositeSvgDataUri({
+      base64Data: input.uploadedImage.base64Data,
+      mimeType: input.uploadedImage.mimeType,
+      rank: input.rank,
+      suit: input.suit,
+      primaryColor: paletteMeta.primary,
+      secondaryColor: paletteMeta.secondary,
+      accentColor: paletteMeta.accent,
+      stylizeFilter: false,
+    });
+
+    return {
+      illustrationUrl: compositeSvgUri,
+      modelId: 'ქართული ორნამენტული ფოტო-ჩარჩო (პირდაპირი)',
+      status: 'completed',
+      isDemoFallback: false,
+      promptUsed,
+      metadata: {
+        durationMs: Date.now() - startTime,
+        aspectRatio,
+        imageSize,
+        storageDriver: 'data-uri',
+      },
+    };
+  }
+
   // If Gemini API key is not configured, return clearly marked Demo mode artwork
+  // (or stylized photo composite if the user uploaded a photo)
   if (!isGeminiConfigured()) {
+    if (input.uploadedImage) {
+      const stylizedPhotoSvgUri = buildGeorgianPhotoCompositeSvgDataUri({
+        base64Data: input.uploadedImage.base64Data,
+        mimeType: input.uploadedImage.mimeType,
+        rank: input.rank,
+        suit: input.suit,
+        primaryColor: paletteMeta.primary,
+        secondaryColor: paletteMeta.secondary,
+        accentColor: paletteMeta.accent,
+        stylizeFilter: true,
+      });
+
+      return {
+        illustrationUrl: stylizedPhotoSvgUri,
+        modelId: `${selectedModel} (ფოტოს სტილიზაცია — დემო რეჟიმი)`,
+        status: 'completed',
+        isDemoFallback: true,
+        promptUsed,
+        metadata: {
+          durationMs: Date.now() - startTime,
+          aspectRatio,
+          imageSize,
+          storageDriver: 'data-uri',
+          warningKa:
+            'ატვირთული ფოტო დამუშავდა ქართული ორნამენტული თაღისა და ფერთა სტილიზაციის ძრავით (სრული AI Image-to-Image გენერაციისთვის მიუთითეთ GEMINI_API_KEY).',
+        },
+      };
+    }
+
     const themeVariant =
       input.rank === 'K'
         ? 'king-david'
@@ -263,15 +333,30 @@ export async function generateCardIllustrationWithGemini(
 
   // Real Gemini API call using `@google/genai`
   const ai = new GoogleGenAI({ apiKey: config.GEMINI_API_KEY });
+  const rawUploadedBase64 = input.uploadedImage?.base64Data
+    ? input.uploadedImage.base64Data.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '')
+    : undefined;
+  const uploadedMimeType = input.uploadedImage?.mimeType || 'image/png';
 
   const parsedImage = await withTimeoutAndRetry(
     async () => {
       const aiAny = ai as any;
-      // Primary documented Nano Banana 2.1 Interactions API
+      // Primary documented Nano Banana 2.1 Interactions API (supports text or multimodal text+image input)
       if (aiAny.interactions && typeof aiAny.interactions.create === 'function') {
+        const interactionInput = rawUploadedBase64
+          ? [
+              { type: 'text', text: promptUsed },
+              {
+                type: 'image',
+                mime_type: uploadedMimeType,
+                data: rawUploadedBase64,
+              },
+            ]
+          : promptUsed;
+
         const interaction = await aiAny.interactions.create({
           model: selectedModel,
-          input: promptUsed,
+          input: interactionInput,
           response_format: {
             type: 'image',
             aspect_ratio: aspectRatio,
@@ -283,9 +368,21 @@ export async function generateCardIllustrationWithGemini(
       }
 
       // Fallback to `ai.models.generateContent` for Gemini native image output
+      const contentsPayload = rawUploadedBase64
+        ? [
+            { text: promptUsed },
+            {
+              inlineData: {
+                mimeType: uploadedMimeType,
+                data: rawUploadedBase64,
+              },
+            },
+          ]
+        : promptUsed;
+
       const response = await ai.models.generateContent({
         model: selectedModel,
-        contents: promptUsed,
+        contents: contentsPayload as any,
         config: {
           responseModalities: ['IMAGE', 'TEXT'],
         } as any,

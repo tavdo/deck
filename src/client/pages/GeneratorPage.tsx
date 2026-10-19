@@ -15,10 +15,16 @@ import {
   CheckCircle2,
   Clock,
   Info,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
+  Wand2,
 } from 'lucide-react';
 import { CardRenderer } from '../components/CardRenderer';
 import { GeorgianOrnamentDivider } from '../components/GeorgianOrnaments';
 import {
+  ALLOWED_UPLOAD_MIME_TYPES,
+  AllowedUploadMimeType,
   buildDeckCardCompositions,
   calculateEstimatedGenerationCost,
   CardRank,
@@ -37,7 +43,9 @@ import {
   SUIT_TYPES,
   SuitType,
   SUPPORTED_GEMINI_MODELS,
+  UploadedImageInput,
 } from '../../shared/types';
+import { buildGeorgianPhotoCompositeSvgDataUri } from '../../shared/demoData';
 import { apiClient } from '../services/apiClient';
 import { downloadPngFromSvgElement } from '../utils/cardExportUtils';
 
@@ -59,10 +67,69 @@ export const GeneratorPage: React.FC<{
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Mode Switcher: 'single' | 'deck'
-  const [mode, setMode] = useState<'single' | 'deck'>(
-    searchParams.get('mode') === 'deck' ? 'deck' : 'single'
+  // Mode Switcher: 'single' | 'photo' | 'deck'
+  const initialModeParam = searchParams.get('mode');
+  const [mode, setMode] = useState<'single' | 'photo' | 'deck'>(
+    initialModeParam === 'deck'
+      ? 'deck'
+      : initialModeParam === 'photo'
+      ? 'photo'
+      : 'single'
   );
+
+  // ==========================================================================
+  // Photo Upload State (Shared across Photo-to-Card, Single Card & Deck Modes)
+  // ==========================================================================
+  const [uploadedImage, setUploadedImage] = useState<UploadedImageInput | null>(null);
+  const [photoTransformMode, setPhotoTransformMode] = useState<
+    'ai-stylize' | 'direct-frame'
+  >('ai-stylize');
+  const [isDraggingPhoto, setIsDraggingPhoto] = useState<boolean>(false);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handlePhotoFile = (file?: File | null) => {
+    if (!file) return;
+    if (
+      !ALLOWED_UPLOAD_MIME_TYPES.includes(file.type as AllowedUploadMimeType)
+    ) {
+      notify(
+        'მხარდაჭერილია მხოლოდ PNG, JPG და WEBP ფორმატის ფოტოები.',
+        'error'
+      );
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      notify('ფოტოს ზომა არ უნდა აღემატებოდეს 8 MB-ს.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const resultStr = String(reader.result || '');
+      const base64Clean = resultStr.replace(
+        /^data:image\/[a-zA-Z0-9+.-]+;base64,/,
+        ''
+      );
+      setUploadedImage({
+        base64Data: base64Clean,
+        mimeType: file.type as AllowedUploadMimeType,
+        fileName: file.name,
+        photoTransformMode,
+      });
+      notify(`ფოტო "${file.name}" წარმატებით აიტვირთა!`, 'success');
+    };
+    reader.onerror = () => {
+      notify('ფოტოს წაკითხვისას მოხდა შეცდომა.', 'error');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearUploadedPhoto = () => {
+    setUploadedImage(null);
+    if (photoInputRef.current) {
+      photoInputRef.current.value = '';
+    }
+  };
 
   // ==========================================================================
   // 1. Single Card Generator State
@@ -107,7 +174,11 @@ export const GeneratorPage: React.FC<{
   const handleGenerateSingle = async () => {
     setIsGeneratingSingle(true);
     setSingleErrorMsg('');
-    setSingleStatusMsg('მიმდინარეობს Gemini AI ილუსტრაციისა და ქართული ჩარჩოს გენერირება...');
+    setSingleStatusMsg(
+      uploadedImage
+        ? 'მიმდინარეობს ატვირთული ფოტოდან ქართული კარტის დიზაინის გენერირება...'
+        : 'მიმდინარეობს Gemini AI ილუსტრაციისა და ქართული ჩარჩოს გენერირება...'
+    );
 
     try {
       const { card, generationMetadata } = await apiClient.generateSingleCard({
@@ -123,6 +194,12 @@ export const GeneratorPage: React.FC<{
         customPrompt: customPrompt || undefined,
         imageQuality,
         modelId,
+        uploadedImage: uploadedImage
+          ? {
+              ...uploadedImage,
+              photoTransformMode,
+            }
+          : undefined,
       });
 
       setCurrentSingleCard(card);
@@ -162,7 +239,13 @@ export const GeneratorPage: React.FC<{
         complexityLevel,
         modelId,
         noteKa: 'გენერატორიდან ხელახლა შექმნილი',
-      });
+        uploadedImage: uploadedImage
+          ? {
+              ...uploadedImage,
+              photoTransformMode,
+            }
+          : undefined,
+      } as any);
       setCurrentSingleCard(card);
       onCardGenerated(card);
       setSingleStatusMsg('კარტი წარმატებით განახლდა!');
@@ -254,6 +337,12 @@ export const GeneratorPage: React.FC<{
     imageQuality,
     modelId,
     customDeckThemePrompt: customDeckThemePrompt || undefined,
+    uploadedReferenceImage: uploadedImage
+      ? {
+          ...uploadedImage,
+          photoTransformMode,
+        }
+      : undefined,
   };
 
   const plannedCompositions = buildDeckCardCompositions(currentDeckConfig);
@@ -396,6 +485,226 @@ export const GeneratorPage: React.FC<{
   const selectedPaletteObj =
     COLOR_PALETTES.find((p) => p.id === paletteId) || COLOR_PALETTES[0];
 
+  // Instant client-side preview of the uploaded photo framed inside the Georgian SVG card
+  const liveUploadedPhotoIllustrationUrl = uploadedImage
+    ? buildGeorgianPhotoCompositeSvgDataUri({
+        base64Data: uploadedImage.base64Data,
+        mimeType: uploadedImage.mimeType,
+        rank,
+        suit,
+        primaryColor: selectedPaletteObj.primary,
+        secondaryColor: selectedPaletteObj.secondary,
+        accentColor: selectedPaletteObj.accent,
+        stylizeFilter: photoTransformMode === 'ai-stylize',
+      })
+    : undefined;
+
+  const handleGenerateRoyalSetFromPhoto = async () => {
+    if (!uploadedImage) {
+      notify('გთხოვთ, ჯერ ატვირთოთ ფოტო.', 'error');
+      return;
+    }
+    try {
+      const royalDeckConfig: DeckConfig = {
+        deckType: 'custom',
+        suits: [suit],
+        ranks: ['A', 'K', 'Q', 'J'],
+        includeJoker: false,
+        jokerCount: 0,
+        includeCardBack: true,
+        illustrationStyle,
+        paletteId,
+        ornamentMotif,
+        complexityLevel,
+        cardWidthMm: 63,
+        cardHeightMm: 88,
+        imageQuality,
+        modelId,
+        customDeckThemePrompt:
+          customPrompt || 'ატვირთული ფოტოს მიხედვით შექმნილი ქართული სამეფო კარტების სერია',
+        uploadedReferenceImage: {
+          ...uploadedImage,
+          photoTransformMode,
+        },
+      };
+      const res = await apiClient.generateCompleteDeck({
+        projectName: `ფოტო-კოლექცია (${uploadedImage.fileName || 'სამეფო ნაკრები'})`,
+        projectDescription: 'მომხმარებლის ატვირთული ფოტოდან გენერირებული ქართული სამეფო კარტები.',
+        deckConfig: royalDeckConfig,
+        confirmedCostEstimate: true,
+      });
+      setMode('deck');
+      setActiveJob(res.job);
+      setDeckCards(res.cards);
+      onDeckCreated(res.project);
+      notify('ფოტოდან 4 სამეფო კარტის გენერირება დაიწყო!', 'success');
+    } catch (err: any) {
+      notify(
+        err?.response?.data?.error || 'ფოტოდან ნაკრების შექმნა ვერ მოხერხდა.',
+        'error'
+      );
+    }
+  };
+
+  const renderPhotoUploadSection = (titleText: string) => (
+    <div
+      style={{
+        padding: '1rem',
+        background: isDraggingPhoto
+          ? 'rgba(198, 161, 91, 0.16)'
+          : 'rgba(53, 26, 34, 0.38)',
+        border: isDraggingPhoto
+          ? '2px dashed var(--color-gold-bright)'
+          : '1px dashed rgba(198, 161, 91, 0.45)',
+        borderRadius: 'var(--radius-md)',
+        marginBottom: '1.15rem',
+        transition: 'all 0.2s ease',
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDraggingPhoto(true);
+      }}
+      onDragLeave={() => setIsDraggingPhoto(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDraggingPhoto(false);
+        const droppedFile = e.dataTransfer.files?.[0];
+        if (droppedFile) handlePhotoFile(droppedFile);
+      }}
+    >
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        style={{ display: 'none' }}
+        data-testid="photo-upload-input"
+        onChange={(e) => handlePhotoFile(e.target.files?.[0])}
+      />
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.75rem',
+          marginBottom: uploadedImage ? '0.85rem' : '0.4rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+          <ImageIcon size={18} color="#C6A15B" />
+          <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-ivory)' }}>
+            {titleText}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          className="btn btn-gold btn-sm"
+          onClick={() => photoInputRef.current?.click()}
+        >
+          <Upload size={14} />
+          <span>{uploadedImage ? 'სხვა ფოტოს არჩევა' : 'ფოტოს ატვირთვა'}</span>
+        </button>
+      </div>
+
+      {!uploadedImage ? (
+        <div
+          onClick={() => photoInputRef.current?.click()}
+          style={{
+            fontSize: '0.8rem',
+            color: 'var(--color-stone)',
+            cursor: 'pointer',
+            padding: '0.35rem 0',
+          }}
+        >
+          გადმოიტანეთ ფოტო აქ ან დააჭირეთ ასატვირთად (PNG, JPG, WEBP — მაქს. 8MB). პროგრამა ავტომატურად შექმნის ქართული ბანქოს დიზაინს თქვენი ფოტოს მიხედვით.
+        </div>
+      ) : (
+        <div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              padding: '0.6rem',
+              background: 'rgba(15, 13, 14, 0.72)',
+              borderRadius: 'var(--radius-sm)',
+              border: 'var(--border-gold-thin)',
+              marginBottom: '0.75rem',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <img
+                src={`data:${uploadedImage.mimeType};base64,${uploadedImage.base64Data}`}
+                alt="ატვირთული ფოტო"
+                style={{
+                  width: '52px',
+                  height: '64px',
+                  objectFit: 'cover',
+                  borderRadius: '6px',
+                  border: '1px solid var(--color-gold)',
+                }}
+              />
+              <div>
+                <div style={{ fontSize: '0.84rem', fontWeight: 600 }}>
+                  {uploadedImage.fileName || 'ატვირთული ფოტო'}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#8CD9A3' }}>
+                  ფოტო მზადაა კარტის დიზაინში ჩასასმელად
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-danger btn-sm"
+              onClick={clearUploadedPhoto}
+              title="ფოტოს წაშლა"
+            >
+              <Trash2 size={14} />
+              <span>წაშლა</span>
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+            <button
+              type="button"
+              className={`btn btn-sm ${
+                photoTransformMode === 'ai-stylize' ? 'btn-primary' : 'btn-secondary'
+              }`}
+              onClick={() => {
+                setPhotoTransformMode('ai-stylize');
+                setUploadedImage((prev) =>
+                  prev ? { ...prev, photoTransformMode: 'ai-stylize' } : null
+                );
+              }}
+            >
+              <Wand2 size={14} />
+              <span>AI ქართული სტილიზაცია</span>
+            </button>
+
+            <button
+              type="button"
+              className={`btn btn-sm ${
+                photoTransformMode === 'direct-frame' ? 'btn-primary' : 'btn-secondary'
+              }`}
+              onClick={() => {
+                setPhotoTransformMode('direct-frame');
+                setUploadedImage((prev) =>
+                  prev ? { ...prev, photoTransformMode: 'direct-frame' } : null
+                );
+              }}
+            >
+              <ImageIcon size={14} />
+              <span>პირდაპირი ქართული ჩარჩო</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="container" style={{ paddingTop: '2.25rem' }}>
       {/* Page Header & Segmented Mode Switcher */}
@@ -414,7 +723,7 @@ export const GeneratorPage: React.FC<{
             დიზაინის გენერატორი
           </h1>
           <p style={{ color: 'var(--color-stone)', fontSize: '0.92rem' }}>
-            შექმენით ცალკეული კარტი ან სრული ქართული დასტა ერთიანი სტილის სპეციფიკაციით
+            ატვირთეთ ფოტო, შექმენით ცალკეული კარტი ან დააგენერირეთ სრული ქართული დასტა
           </p>
         </div>
 
@@ -430,6 +739,15 @@ export const GeneratorPage: React.FC<{
           </button>
           <button
             role="tab"
+            aria-selected={mode === 'photo'}
+            className={`segment-btn ${mode === 'photo' ? 'active' : ''}`}
+            onClick={() => setMode('photo')}
+          >
+            <Upload size={17} />
+            <span>ფოტოდან დიზაინი</span>
+          </button>
+          <button
+            role="tab"
             aria-selected={mode === 'deck'}
             className={`segment-btn ${mode === 'deck' ? 'active' : ''}`}
             onClick={() => setMode('deck')}
@@ -441,6 +759,210 @@ export const GeneratorPage: React.FC<{
       </div>
 
       {/* ====================================================================
+          MODE 0: PHOTO-TO-CARD STUDIO (ფოტოდან დიზაინის სწრაფი შექმნა)
+         ==================================================================== */}
+      {mode === 'photo' && (
+        <div className="workspace-grid">
+          <div className="luxury-panel" style={{ padding: '1.6rem' }}>
+            <span className="badge badge-gold" style={{ marginBottom: '0.6rem' }}>
+              ფოტოდან კარტისა და დასტის ავტომატური დიზაინი
+            </span>
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>
+              ატვირთეთ ფოტო და მიიღეთ მზა ქართული ბანქოს დიზაინი
+            </h3>
+            <p style={{ color: 'var(--color-stone)', fontSize: '0.86rem', marginBottom: '1.2rem' }}>
+              ატვირთეთ პორტრეტი, ფოტოსურათი, ლოგო ან ილუსტრაცია — სისტემა ავტომატურად მოარგებს ქართულ ორნამენტულ ჩარჩოს, სამეფო გვირგვინს, ინდექსებსა და მხატვრულ სტილიზაციას.
+            </p>
+
+            {renderPhotoUploadSection('1. ატვირთეთ თქვენი ფოტო')}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="photo-rank-select">
+                  კარტის რანგი
+                </label>
+                <select
+                  id="photo-rank-select"
+                  className="form-select"
+                  value={rank}
+                  onChange={(e) => handleRankChange(e.target.value as CardRank)}
+                >
+                  {Object.values(RANK_METADATA).map((r) => (
+                    <option key={r.rank} value={r.rank}>
+                      {r.labelKa}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="photo-suit-select">
+                  მასტი / სიმბოლო
+                </label>
+                <select
+                  id="photo-suit-select"
+                  className="form-select"
+                  value={suit}
+                  onChange={(e) => setSuit(e.target.value as SuitType)}
+                >
+                  {SUIT_TYPES.map((s) => (
+                    <option key={s} value={s}>
+                      {SUIT_METADATA[s].symbol} {SUIT_METADATA[s].nameKa}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="photo-palette-select">
+                  ფერთა პალიტრა
+                </label>
+                <select
+                  id="photo-palette-select"
+                  className="form-select"
+                  value={paletteId}
+                  onChange={(e) => setPaletteId(e.target.value)}
+                >
+                  {COLOR_PALETTES.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nameKa}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="photo-motif-select">
+                  ქართული ორნამენტი
+                </label>
+                <select
+                  id="photo-motif-select"
+                  className="form-select"
+                  value={ornamentMotif}
+                  onChange={(e) => setOrnamentMotif(e.target.value as any)}
+                >
+                  {ORNAMENT_MOTIFS.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nameKa}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="photo-custom-prompt">
+                სურვილისამებრ: დამატებითი მითითება სტილიზაციისთვის
+              </label>
+              <input
+                id="photo-custom-prompt"
+                type="text"
+                className="form-input"
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder="მაგ: შეინარჩუნე სახის ნაკვთები და შექმენი ქართველი მეფის სამოსით..."
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem', marginTop: '1rem' }}>
+              <button
+                className="btn btn-primary"
+                onClick={handleGenerateSingle}
+                disabled={!uploadedImage || isGeneratingSingle}
+              >
+                <Sparkles size={18} />
+                <span>ფოტოდან კარტის დიზაინის გენერირება</span>
+              </button>
+
+              <button
+                className="btn btn-gold"
+                onClick={handleGenerateRoyalSetFromPhoto}
+                disabled={!uploadedImage || isGeneratingSingle}
+              >
+                <Layers size={17} />
+                <span>ფოტოდან 4 სამეფო კარტის (A, K, Q, J) შექმნა</span>
+              </button>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleSaveSingleCard}
+                  disabled={!currentSingleCard || isGeneratingSingle}
+                >
+                  <Save size={16} />
+                  <span>შენახვა</span>
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleDownloadSingleCard}
+                  disabled={!currentSingleCard || isGeneratingSingle}
+                >
+                  <Download size={16} />
+                  <span>ჩამოტვირთვა</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Live Preview for Photo-to-Card Mode */}
+          <div
+            className="luxury-panel"
+            style={{
+              padding: '2.25rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '640px',
+            }}
+          >
+            <span className="badge badge-gold" style={{ marginBottom: '1rem' }}>
+              {uploadedImage
+                ? 'ცოცხალი გადახედვა თქვენი ატვირთული ფოტოთი'
+                : 'ატვირთეთ ფოტო მარცხენა პანელში'}
+            </span>
+            <CardRenderer
+              id={currentSingleCard?.id || 'photo-live-preview'}
+              svgRef={singleSvgRef}
+              rank={rank}
+              suit={suit}
+              illustrationUrl={
+                liveUploadedPhotoIllustrationUrl || currentSingleCard?.illustrationUrl
+              }
+              titleKa={`${SUIT_METADATA[suit].nameKa} — ${RANK_METADATA[rank].labelKa}`}
+              designSpec={{
+                paletteId: selectedPaletteObj.id,
+                primaryColor: selectedPaletteObj.primary,
+                secondaryColor: selectedPaletteObj.secondary,
+                accentColor: selectedPaletteObj.accent,
+                surfaceColor: selectedPaletteObj.surface,
+                ornamentMotif,
+              }}
+              scale={1.08}
+            />
+
+            {singleStatusMsg && (
+              <div
+                style={{
+                  marginTop: '1.25rem',
+                  padding: '0.6rem 1rem',
+                  background: 'rgba(198, 161, 91, 0.12)',
+                  border: 'var(--border-gold-thin)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--color-gold-bright)',
+                  fontSize: '0.85rem',
+                }}
+              >
+                {singleStatusMsg}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
           MODE 1: SINGLE CARD GENERATOR (ერთი კარტის გენერატორი)
          ==================================================================== */}
       {mode === 'single' && (
@@ -450,6 +972,9 @@ export const GeneratorPage: React.FC<{
             <h3 style={{ fontSize: '1.15rem', marginBottom: '1.15rem' }}>
               კარტის პარამეტრები
             </h3>
+
+            {/* Optional Photo Upload inside Single Card Generator */}
+            {renderPhotoUploadSection('ფოტოს ატვირთვა დიზაინისთვის (არასავალდებულო)')}
 
             {/* Rank & Suit */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
@@ -728,7 +1253,9 @@ export const GeneratorPage: React.FC<{
                   svgRef={singleSvgRef}
                   rank={currentSingleCard?.rank || rank}
                   suit={currentSingleCard?.suit || suit}
-                  illustrationUrl={currentSingleCard?.illustrationUrl}
+                  illustrationUrl={
+                    currentSingleCard?.illustrationUrl || liveUploadedPhotoIllustrationUrl
+                  }
                   titleKa={
                     currentSingleCard?.titleKa ||
                     `${SUIT_METADATA[suit].nameKa} — ${RANK_METADATA[rank].labelKa}`
@@ -824,6 +1351,9 @@ export const GeneratorPage: React.FC<{
               <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem' }}>
                 სრული დასტის კონფიგურაცია
               </h3>
+
+              {/* Optional Reference Photo Upload for Complete Deck */}
+              {renderPhotoUploadSection('საყრდენი ფოტო დასტის დიზაინისთვის (არასავალდებულო)')}
 
               <div className="form-group">
                 <label className="form-label" htmlFor="deck-name-input">

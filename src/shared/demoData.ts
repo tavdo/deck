@@ -204,6 +204,106 @@ export function buildGeorgianSvgIllustrationDataUri(params: {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
+/**
+ * Wraps and stylizes a user-uploaded photo (base64 data URI) inside a Georgian
+ * ornamental sanctuary arch & royal filigree composition so that an uploaded photo
+ * immediately becomes a cohesive Georgian playing card artwork.
+ */
+export function buildGeorgianPhotoCompositeSvgDataUri(params: {
+  base64Data: string;
+  mimeType: string;
+  rank: string;
+  suit: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
+  stylizeFilter?: boolean;
+}): string {
+  const primary = params.primaryColor || '#722F37';
+  const secondary = params.secondaryColor || '#351A22';
+  const accent = params.accentColor || '#C6A15B';
+  const cleanBase64 = params.base64Data.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
+  const embeddedHref = `data:${params.mimeType};base64,${cleanBase64}`;
+
+  const crownOverlay =
+    params.rank === 'K' || params.rank === 'Q'
+      ? `
+      <!-- Royal Georgian Crown Crest Above Portrait -->
+      <g transform="translate(0, -4)">
+        <path d="M116 64 L124 40 L138 54 L150 32 L162 54 L176 40 L184 64 Z" fill="${accent}" stroke="#151515" stroke-width="1.4"/>
+        <rect x="118" y="62" width="64" height="7" rx="3" fill="${primary}" stroke="${accent}" stroke-width="1.3"/>
+        <circle cx="150" cy="30" r="3.5" fill="${primary}" stroke="${accent}" stroke-width="1.2"/>
+        <circle cx="132" cy="65.5" r="2" fill="#F4EBDD"/>
+        <circle cx="150" cy="65.5" r="2.4" fill="${accent}"/>
+        <circle cx="168" cy="65.5" r="2" fill="#F4EBDD"/>
+      </g>`
+      : '';
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420" width="600" height="840">
+    <defs>
+      <radialGradient id="photoBgGlow" cx="50%" cy="45%" r="62%">
+        <stop offset="0%" stop-color="${primary}" stop-opacity="0.5"/>
+        <stop offset="70%" stop-color="${secondary}" stop-opacity="0.92"/>
+        <stop offset="100%" stop-color="#120E10" stop-opacity="1"/>
+      </radialGradient>
+      <radialGradient id="photoVignette" cx="50%" cy="48%" r="54%">
+        <stop offset="55%" stop-color="#000000" stop-opacity="0"/>
+        <stop offset="88%" stop-color="${secondary}" stop-opacity="0.48"/>
+        <stop offset="100%" stop-color="#120E10" stop-opacity="0.88"/>
+      </radialGradient>
+      <clipPath id="georgianPortraitArch">
+        <path d="M40 372 V120 C40 66 90 42 150 42 C210 42 260 66 260 120 V372 Z"/>
+      </clipPath>
+      ${
+        params.stylizeFilter
+          ? `<filter id="georgianHeritageTone" color-interpolation-filters="sRGB">
+              <feColorMatrix type="matrix" values="
+                1.08 0.06 0.02 0 0.01
+                0.03 0.98 0.02 0 0
+                0.01 0.02 0.88 0 0
+                0    0    0    1 0" />
+            </filter>`
+          : ''
+      }
+    </defs>
+
+    <!-- Sanctuary Background -->
+    <rect width="300" height="420" fill="url(#photoBgGlow)"/>
+
+    <!-- User Uploaded Photo Clipped to Georgian Cathedral Arch -->
+    <g clip-path="url(#georgianPortraitArch)">
+      <image
+        href="${embeddedHref}"
+        x="34"
+        y="36"
+        width="232"
+        height="344"
+        preserveAspectRatio="xMidYMid slice"
+        ${params.stylizeFilter ? 'filter="url(#georgianHeritageTone)"' : ''}
+      />
+      <rect x="34" y="36" width="232" height="344" fill="url(#photoVignette)"/>
+    </g>
+
+    <!-- Georgian Cloisonné Gold & Enamel Arch Frame -->
+    <path d="M40 372 V120 C40 66 90 42 150 42 C210 42 260 66 260 120 V372 Z" fill="none" stroke="${accent}" stroke-width="3.2"/>
+    <path d="M47 365 V123 C47 73 94 50 150 50 C206 50 253 73 253 123 V365 Z" fill="none" stroke="${primary}" stroke-width="1.3" stroke-dasharray="4 3"/>
+
+    <!-- Corner Filigree Rosettes -->
+    <circle cx="54" cy="356" r="8" fill="${secondary}" stroke="${accent}" stroke-width="1.6"/>
+    <circle cx="54" cy="356" r="3" fill="${accent}"/>
+    <circle cx="246" cy="356" r="8" fill="${secondary}" stroke="${accent}" stroke-width="1.6"/>
+    <circle cx="246" cy="356" r="3" fill="${accent}"/>
+
+    <!-- Bottom Heraldic Medallion -->
+    <path d="M112 372 L150 352 L188 372 L150 390 Z" fill="${secondary}" stroke="${accent}" stroke-width="1.8"/>
+    <circle cx="150" cy="371" r="6" fill="${primary}" stroke="${accent}" stroke-width="1.4"/>
+
+    ${crownOverlay}
+  </svg>`;
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 const nowIso = new Date().toISOString();
 
 export const INITIAL_DEMO_PROJECTS: Project[] = [

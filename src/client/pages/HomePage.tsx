@@ -104,6 +104,14 @@ export const HomePage: React.FC<{
                 </button>
 
                 <button
+                  className="btn btn-gold btn-lg"
+                  onClick={() => navigate('/generator?mode=photo')}
+                >
+                  <Sparkles size={19} />
+                  <span>ფოტოს ატვირთვა და დიზაინი</span>
+                </button>
+
+                <button
                   className="btn btn-secondary btn-lg"
                   onClick={() => navigate('/gallery')}
                 >

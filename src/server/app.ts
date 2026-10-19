@@ -34,6 +34,7 @@ import {
   SingleCardGenerateRequestSchema,
   SUIT_METADATA,
   SUPPORTED_GEMINI_MODELS,
+  UploadedImageSchema,
 } from '../shared/types.js';
 import { generateCardIllustrationWithGemini } from './services/geminiService.js';
 import {
@@ -52,7 +53,7 @@ export function createApp() {
       origin: config.CORS_ORIGIN === '*' ? true : config.CORS_ORIGIN,
     })
   );
-  app.use(express.json({ limit: '5mb' }));
+  app.use(express.json({ limit: '15mb' }));
 
   // Serve locally stored card illustrations
   app.use('/storage', express.static(getLocalStorageDir()));
@@ -294,6 +295,7 @@ export function createApp() {
         customPrompt: parsed.customPrompt,
         imageQuality: parsed.imageQuality,
         modelId: parsed.modelId,
+        uploadedImage: parsed.uploadedImage,
       });
 
       const designSpec = CardDesignSpecSchema.parse({
@@ -362,6 +364,7 @@ export function createApp() {
             complexityLevel: z.enum(['minimal', 'balanced', 'royal-intricate']).optional(),
             modelId: z.string().optional(),
             noteKa: z.string().max(200).optional(),
+            uploadedImage: UploadedImageSchema.optional(),
           })
           .optional();
 
@@ -387,6 +390,7 @@ export function createApp() {
           customPrompt: nextCustomPrompt,
           modelId: overrides.modelId || proj?.deckConfig.modelId,
           sharedStyleSpec: proj?.sharedStyleSpec,
+          uploadedImage: overrides.uploadedImage,
         });
 
         const palette =

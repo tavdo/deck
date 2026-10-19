@@ -412,5 +412,46 @@ describe('Kartuli Deck AI — Comprehensive Suite', () => {
       const pdfHeader = (res.body as Buffer).subarray(0, 5).toString('ascii');
       expect(pdfHeader).toBe('%PDF-');
     });
+
+    it('POST /api/cards/generate supports uploaded photo-to-card design generation and validates MIME types', async () => {
+      // 1. Valid PNG photo upload in ai-stylize mode
+      const samplePngBase64 =
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+
+      const photoGenRes = await request(app)
+        .post('/api/cards/generate')
+        .send({
+          rank: 'K',
+          suit: 'guli',
+          illustrationStyle: 'royal-enamel',
+          paletteId: 'saperavi-gold',
+          ornamentMotif: 'vine',
+          subjectDescription: 'ატვირთული პორტრეტი სამეფო გვირგვინით',
+          uploadedImage: {
+            base64Data: samplePngBase64,
+            mimeType: 'image/png',
+            fileName: 'portrait.png',
+            photoTransformMode: 'ai-stylize',
+          },
+        });
+
+      expect(photoGenRes.status).toBe(201);
+      expect(photoGenRes.body.card.illustrationUrl).toContain('data:image/svg+xml');
+      expect(photoGenRes.body.card.promptUsed).toContain('Transform the provided reference photo');
+
+      // 2. Invalid MIME type rejected by Zod validation
+      const invalidMimeRes = await request(app)
+        .post('/api/cards/generate')
+        .send({
+          rank: 'K',
+          suit: 'guli',
+          uploadedImage: {
+            base64Data: samplePngBase64,
+            mimeType: 'application/x-msdownload',
+          },
+        });
+
+      expect(invalidMimeRes.status).toBe(400);
+    });
   });
 });
